@@ -5,3 +5,7 @@ dist/
 *.log
 manual-upload/
 *.tsbuildinfo
+.env
+.env.*
+.npmrc
+.serena/
