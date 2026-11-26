@@ -303,6 +303,7 @@ async function readManifest(env: Env): Promise<RuleManifest | null> {
     typeof manifest.active !== "string" ||
     (manifest.previous !== null && typeof manifest.previous !== "string") ||
     typeof manifest.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(manifest.sha256) ||
     !Number.isInteger(manifest.size) ||
     manifest.size < MIN_RULE_BYTES ||
     manifest.size > MAX_RULE_BYTES
@@ -316,13 +317,26 @@ async function loadVersion(
   env: Env,
   version: string,
   expectedSize: number | null,
-  now: number
+  now: number,
+  expectedHash?: string
 ): Promise<LoadedRules | null> {
   const buffer = await env.RULES_KV.get(version, "arrayBuffer");
   if (buffer === null || (expectedSize !== null && buffer.byteLength !== expectedSize)) {
     return null;
   }
   try {
+    const digest = await sha256Hex(buffer);
+    if (expectedHash !== undefined && digest !== expectedHash) return null;
+
+    const versionPrefix = "rules:data:";
+    if (
+      expectedHash === undefined &&
+      version.startsWith(versionPrefix) &&
+      digest !== version.slice(versionPrefix.length)
+    ) {
+      return null;
+    }
+
     const data = new Uint8Array(buffer);
     const index = inspectRuleData(data);
     return { version, data, index, checkedAt: now };
@@ -345,7 +359,13 @@ async function refreshRules(env: Env, now: number, force: boolean): Promise<Load
       cachedRules.checkedAt = now;
       return cachedRules;
     }
-    const active = await loadVersion(env, manifest.active, manifest.size, now);
+    const active = await loadVersion(
+      env,
+      manifest.active,
+      manifest.size,
+      now,
+      manifest.sha256
+    );
     if (active !== null) {
       cachedRules = active;
       return active;

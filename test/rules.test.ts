@@ -69,6 +69,19 @@ describe("byte-level rules", () => {
     expect(fallback?.version).toBe(current.version);
   });
 
+  it("rejects active rules whose KV hash differs from the manifest", async () => {
+    const current = await envWithRules();
+    const stored = current.kv.values.get(current.version);
+    if (!(stored instanceof ArrayBuffer)) throw new Error("test rules missing");
+    const data = new Uint8Array(stored);
+    const lastIndex = data.byteLength - 1;
+    data[lastIndex] = (data[lastIndex] ?? 0) ^ 1;
+    current.kv.values.set(current.version, data.buffer.slice(0));
+
+    const loaded = await getRules(current.env, 1000, true);
+    expect(loaded).toBeNull();
+  });
+
   it("writes and verifies raw version data before switching manifest", async () => {
     const kv = new MemoryKv();
     const rules = makeRuleBytes();
