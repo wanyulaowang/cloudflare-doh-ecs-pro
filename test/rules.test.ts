@@ -7,6 +7,7 @@ import {
 } from "../src/rules";
 import type { RuleManifest } from "../src/types";
 import { toArrayBuffer } from "../src/binary";
+import { MAX_RULE_BYTES } from "../src/rules";
 import { envWithRules, makeRuleBytes, MemoryKv } from "./helpers";
 
 describe("byte-level rules", () => {
@@ -107,6 +108,23 @@ describe("byte-level rules", () => {
       updateRules({ RULES_KV: kv.asBinding() }, fetcher as unknown as typeof fetch)
     ).rejects.toThrowError("rules_kv_verification_failed");
     expect(kv.values.has("rules:active")).toBe(false);
+  });
+
+  it("rejects an oversized rules stream before writing KV", async () => {
+    const kv = new MemoryKv();
+    const oversized = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_RULE_BYTES + 1));
+        controller.close();
+      }
+    });
+    const fetcher = vi.fn(async () =>
+      new Response(oversized, { headers: { "content-type": "text/plain" } })
+    );
+    await expect(
+      updateRules({ RULES_KV: kv.asBinding() }, fetcher as unknown as typeof fetch)
+    ).rejects.toThrowError("rules_download_too_large");
+    expect(kv.values.size).toBe(0);
   });
 
   it("rejects bad downloads before writing KV", async () => {

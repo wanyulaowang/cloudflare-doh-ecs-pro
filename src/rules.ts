@@ -1,3 +1,5 @@
+import { toArrayBuffer } from "./binary";
+import { BodyTooLargeError, readBodyUpTo } from "./body";
 import type { Env, RuleManifest } from "./types";
 
 export const RULES_URL =
@@ -394,8 +396,16 @@ export async function updateRules(
     }
   }
 
-  const buffer = await response.arrayBuffer();
-  const data = new Uint8Array(buffer);
+  let data: Uint8Array;
+  try {
+    data = await readBodyUpTo(response, MAX_RULE_BYTES);
+  } catch (error) {
+    if (error instanceof BodyTooLargeError) {
+      throw new Error("rules_download_too_large");
+    }
+    throw error;
+  }
+  const buffer = toArrayBuffer(data);
   inspectRuleData(data);
   const sha256 = await sha256Hex(buffer);
   const version = `rules:data:${sha256}`;
