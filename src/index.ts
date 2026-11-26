@@ -188,7 +188,8 @@ async function resolveDnsQuery(
   request: Request,
   env: Env,
   config: WorkerConfig,
-  originalQuery: Uint8Array
+  originalQuery: Uint8Array,
+  ctx?: ExecutionContext
 ): Promise<Uint8Array> {
   let parsed;
   try {
@@ -201,7 +202,7 @@ async function resolveDnsQuery(
   let domestic = false;
   const ruleName = parsed.question.name.ruleName;
   if (ruleName !== null) {
-    const rules = await ensureRules(env);
+    const rules = await ensureRules(env, (promise) => ctx?.waitUntil(promise));
     domestic = rules !== null && isDomesticDomain(rules, ruleName);
   }
 
@@ -247,11 +248,12 @@ async function resolveDnsQuery(
 async function handleDoh(
   request: Request,
   env: Env,
-  config: WorkerConfig
+  config: WorkerConfig,
+  ctx?: ExecutionContext
 ): Promise<Response> {
   const readResult = await readDnsRequest(request, config);
   if (readResult instanceof Response) return readResult;
-  return dnsResponse(await resolveDnsQuery(request, env, config, readResult));
+  return dnsResponse(await resolveDnsQuery(request, env, config, readResult, ctx));
 }
 
 function randomDnsId(): number {
@@ -263,7 +265,8 @@ function randomDnsId(): number {
 async function handleJson(
   request: Request,
   env: Env,
-  config: WorkerConfig
+  config: WorkerConfig,
+  ctx?: ExecutionContext
 ): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname !== config.jsonPath) return emptyResponse(404);
@@ -283,7 +286,7 @@ async function handleJson(
     return jsonBadRequestResponse();
   }
 
-  const resolved = await resolveDnsQuery(request, env, config, query);
+  const resolved = await resolveDnsQuery(request, env, config, query, ctx);
   const info = parseDnsMessage(resolved);
   const name = url.searchParams.get("name") ?? "invalid";
   if ((info.flags & 0x000f) === 2) {
@@ -318,7 +321,11 @@ async function invalidConfigResponse(request: Request, env: Env): Promise<Respon
   return emptyResponse(404);
 }
 
-export async function handleRequest(request: Request, env: Env): Promise<Response> {
+export async function handleRequest(
+  request: Request,
+  env: Env,
+  ctx?: ExecutionContext
+): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === "/" || url.pathname === "/index.html") {
     return homepageResponse();
@@ -331,14 +338,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     return invalidConfigResponse(request, env);
   }
 
-  if (url.pathname === config.dohPath) return handleDoh(request, env, config);
-  if (url.pathname === config.jsonPath) return handleJson(request, env, config);
+  if (url.pathname === config.dohPath) return handleDoh(request, env, config, ctx);
+  if (url.pathname === config.jsonPath) return handleJson(request, env, config, ctx);
   return emptyResponse(404);
 }
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handleRequest(request, env);
+  fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    return handleRequest(request, env, ctx);
   },
 
   scheduled(

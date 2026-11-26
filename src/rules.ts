@@ -498,20 +498,22 @@ export async function updateRules(
   }
 }
 
-export async function ensureRules(env: Env): Promise<LoadedRules | null> {
+export async function ensureRules(
+  env: Env,
+  scheduleBackground?: (promise: Promise<unknown>) => void
+): Promise<LoadedRules | null> {
   const current = await getRules(env);
   if (current !== null) return current;
+
+  // 首次部署时启动后台规则初始化，但不让当前 DNS 查询等待外部规则源。
+  // 调用方应通过 ExecutionContext.waitUntil 注册该 Promise，避免响应完成后被取消。
   if (bootstrapPromise === null) {
     bootstrapPromise = updateRules(env).finally(() => {
       bootstrapPromise = null;
     });
   }
-  try {
-    await bootstrapPromise;
-  } catch {
-    return null;
-  }
-  return getRules(env, Date.now(), true);
+  if (scheduleBackground !== undefined) scheduleBackground(bootstrapPromise);
+  return null;
 }
 
 export function resetRuleCacheForTest(): void {

@@ -3,8 +3,15 @@ import { readU16, toArrayBuffer } from "../src/binary";
 const MAX_RESPONSE_BYTES = 65535;
 import { parseDnsMessage } from "../src/dns";
 import { handleRequest } from "../src/index";
-import { resetRuleCacheForTest } from "../src/rules";
-import { envWithRules, makeInvalidRdataResponseFromQuery, makeQuery, makeResponseFromQuery, MemoryKv } from "./helpers";
+import { getRules, resetRuleCacheForTest, RULES_URL } from "../src/rules";
+import {
+  envWithRules,
+  makeInvalidRdataResponseFromQuery,
+  makeQuery,
+  makeResponseFromQuery,
+  makeRuleBytes,
+  MemoryKv
+} from "./helpers";
 
 function base64Url(data: Uint8Array): string {
   let binary = "";
@@ -131,6 +138,51 @@ describe("DoH worker", () => {
     );
     expect(response.status).toBe(200);
     expect(parseDnsMessage(forwarded).opt).toBeNull();
+  });
+
+  it("starts first-run rules bootstrap in the background without blocking DNS", async () => {
+    resetRuleCacheForTest();
+    const env = { RULES_KV: new MemoryKv().asBinding() };
+    const destinations: string[] = [];
+    const background: Promise<unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url === RULES_URL) {
+          return new Response(toArrayBuffer(makeRuleBytes()), {
+            headers: { "content-type": "text/plain" }
+          });
+        }
+        destinations.push(url);
+        const body = new Uint8Array(init?.body as ArrayBuffer);
+        return new Response(toArrayBuffer(makeResponseFromQuery(body)), {
+          headers: { "content-type": "application/dns-message" }
+        });
+      })
+    );
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        background.push(promise);
+      }
+    } as ExecutionContext;
+
+    const response = await handleRequest(
+      new Request("https://worker.example/doh", {
+        method: "POST",
+        headers: { "content-type": "application/dns-message" },
+        body: toArrayBuffer(makeQuery("qq.com"))
+      }),
+      env,
+      ctx
+    );
+    expect(response.status).toBe(200);
+    expect(destinations).toEqual(["https://dns.google/dns-query"]);
+    expect(background.length).toBeGreaterThan(0);
+    await Promise.all(background);
+
+    const loaded = await getRules(env, Date.now(), true);
+    expect(loaded).not.toBeNull();
   });
 
   it("returns DNS SERVFAIL after exhausting the domestic group", async () => {
