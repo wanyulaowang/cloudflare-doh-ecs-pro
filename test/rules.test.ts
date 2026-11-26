@@ -128,6 +128,35 @@ describe("byte-level rules", () => {
     expect(kv.values.size).toBe(0);
   });
 
+  it("repairs active rules when unchanged upstream data is missing or damaged", async () => {
+    const current = await envWithRules();
+    const rules = makeRuleBytes();
+    const stored = current.kv.values.get(current.version);
+    if (!(stored instanceof ArrayBuffer)) throw new Error("test rules missing");
+    const damaged = new Uint8Array(stored);
+    const lastIndex = damaged.byteLength - 1;
+    damaged[lastIndex] = (damaged[lastIndex] ?? 0) ^ 1;
+    current.kv.values.set(current.version, damaged.buffer.slice(0));
+
+    const fetcher = vi.fn(async () =>
+      new Response(toArrayBuffer(rules), {
+        headers: { "content-type": "text/plain" }
+      })
+    );
+    const result = await updateRules(
+      current.env,
+      fetcher as unknown as typeof fetch
+    );
+    expect(result).toBe("updated");
+    const repaired = current.kv.values.get(current.version);
+    expect(repaired).toBeInstanceOf(ArrayBuffer);
+    expect(new Uint8Array(repaired as ArrayBuffer)).toEqual(rules);
+
+    const loaded = await getRules(current.env, Date.now(), true);
+    expect(loaded?.version).toBe(current.version);
+    expect(isDomesticDomain(loaded!, "qq.com")).toBe(true);
+  });
+
   it("does not switch manifest when KV readback verification fails", async () => {
     const kv = new MemoryKv();
     kv.failReadback = true;

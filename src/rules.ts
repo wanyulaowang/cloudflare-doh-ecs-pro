@@ -450,7 +450,16 @@ export async function updateRules(
       oldManifest.active === version &&
       oldManifest.size === buffer.byteLength
     ) {
-      return "unchanged";
+      // 即使上游内容未变化，也要确认 active KV 中的数据仍然完整。
+      // KV 数据损坏或被误删时，重新写入并验证，避免分流长期退化为国外上游。
+      const active = await env.RULES_KV.get(version, "arrayBuffer");
+      if (
+        active !== null &&
+        active.byteLength === buffer.byteLength &&
+        (await sha256Hex(active)) === sha256
+      ) {
+        return "unchanged";
+      }
     }
 
     await env.RULES_KV.put(version, buffer);
