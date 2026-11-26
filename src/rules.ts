@@ -8,6 +8,7 @@ export const ACTIVE_MANIFEST_KEY = "rules:active";
 export const MAX_RULE_BYTES = 8 * 1024 * 1024;
 const MIN_RULE_BYTES = 32;
 const CACHE_RECHECK_MS = 15 * 60 * 1000;
+const RULES_DOWNLOAD_TIMEOUT_MS = 10 * 1000;
 const encoder = new TextEncoder();
 
 export interface RuleIndex {
@@ -376,88 +377,105 @@ export async function getRules(
 
 export async function updateRules(
   env: Env,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  timeoutMs = RULES_DOWNLOAD_TIMEOUT_MS
 ): Promise<RuleUpdateResult> {
-  const response = await fetcher(RULES_URL, {
-    method: "GET",
-    redirect: "manual",
-    headers: {
-      Accept: "text/plain, application/octet-stream;q=0.9"
-    }
-  });
-  if (!response.ok) throw new Error("rules_download_status");
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  if (contentType.includes("text/html")) throw new Error("rules_download_html");
-  const declaredLength = response.headers.get("content-length");
-  if (declaredLength !== null) {
-    const parsedLength = Number(declaredLength);
-    if (!Number.isFinite(parsedLength) || parsedLength > MAX_RULE_BYTES) {
-      throw new Error("rules_download_too_large");
-    }
-  }
-
-  let data: Uint8Array;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
   try {
-    data = await readBodyUpTo(response, MAX_RULE_BYTES);
-  } catch (error) {
-    if (error instanceof BodyTooLargeError) {
-      throw new Error("rules_download_too_large");
+    response = await fetcher(RULES_URL, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: {
+        Accept: "text/plain, application/octet-stream;q=0.9"
+      }
+    });
+  } catch {
+    clearTimeout(timeout);
+    throw new Error(
+      controller.signal.aborted ? "rules_download_timeout" : "rules_download_network"
+    );
+  }
+  try {
+    if (!response.ok) throw new Error("rules_download_status");
+    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+    if (contentType.includes("text/html")) throw new Error("rules_download_html");
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null) {
+      const parsedLength = Number(declaredLength);
+      if (!Number.isFinite(parsedLength) || parsedLength > MAX_RULE_BYTES) {
+        throw new Error("rules_download_too_large");
+      }
     }
-    throw error;
-  }
-  const buffer = toArrayBuffer(data);
-  inspectRuleData(data);
-  const sha256 = await sha256Hex(buffer);
-  const version = `rules:data:${sha256}`;
-  const oldManifest = await readManifest(env);
-  if (
-    oldManifest !== null &&
-    oldManifest.active === version &&
-    oldManifest.size === buffer.byteLength
-  ) {
-    return "unchanged";
-  }
 
-  await env.RULES_KV.put(version, buffer);
-  const stored = await env.RULES_KV.get(version, "arrayBuffer");
-  if (
-    stored === null ||
-    stored.byteLength !== buffer.byteLength ||
-    (await sha256Hex(stored)) !== sha256
-  ) {
-    throw new Error("rules_kv_verification_failed");
-  }
-
-  const previous =
-    oldManifest === null
-      ? null
-      : oldManifest.active === version
-        ? oldManifest.previous
-        : oldManifest.active;
-  const manifest: RuleManifest = {
-    active: version,
-    previous,
-    sha256,
-    size: buffer.byteLength,
-    updatedAt: new Date().toISOString()
-  };
-  await env.RULES_KV.put(ACTIVE_MANIFEST_KEY, JSON.stringify(manifest));
-
-  const obsolete = oldManifest?.previous;
-  if (obsolete !== undefined && obsolete !== null && obsolete !== version && obsolete !== previous) {
+    let data: Uint8Array;
     try {
-      await env.RULES_KV.delete(obsolete);
-    } catch {
-      // 旧版本清理失败不影响已经完成的原子切换。
+      data = await readBodyUpTo(response, MAX_RULE_BYTES);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        throw new Error("rules_download_too_large");
+      }
+      if (controller.signal.aborted) throw new Error("rules_download_timeout");
+      throw error;
     }
+    const buffer = toArrayBuffer(data);
+    inspectRuleData(data);
+    const sha256 = await sha256Hex(buffer);
+    const version = `rules:data:${sha256}`;
+    const oldManifest = await readManifest(env);
+    if (
+      oldManifest !== null &&
+      oldManifest.active === version &&
+      oldManifest.size === buffer.byteLength
+    ) {
+      return "unchanged";
+    }
+
+    await env.RULES_KV.put(version, buffer);
+    const stored = await env.RULES_KV.get(version, "arrayBuffer");
+    if (
+      stored === null ||
+      stored.byteLength !== buffer.byteLength ||
+      (await sha256Hex(stored)) !== sha256
+    ) {
+      throw new Error("rules_kv_verification_failed");
+    }
+
+    const previous =
+      oldManifest === null
+        ? null
+        : oldManifest.active === version
+          ? oldManifest.previous
+          : oldManifest.active;
+    const manifest: RuleManifest = {
+      active: version,
+      previous,
+      sha256,
+      size: buffer.byteLength,
+      updatedAt: new Date().toISOString()
+    };
+    await env.RULES_KV.put(ACTIVE_MANIFEST_KEY, JSON.stringify(manifest));
+
+    const obsolete = oldManifest?.previous;
+    if (obsolete !== undefined && obsolete !== null && obsolete !== version && obsolete !== previous) {
+      try {
+        await env.RULES_KV.delete(obsolete);
+      } catch {
+        // 旧版本清理失败不影响已经完成的原子切换。
+      }
+    }
+    cachedRules = {
+      version,
+      data,
+      index: inspectRuleData(data),
+      checkedAt: Date.now()
+    };
+    return "updated";
+  } finally {
+    clearTimeout(timeout);
   }
-  cachedRules = {
-    version,
-    data,
-    index: inspectRuleData(data),
-    checkedAt: Date.now()
-  };
-  return "updated";
 }
 
 export async function ensureRules(env: Env): Promise<LoadedRules | null> {

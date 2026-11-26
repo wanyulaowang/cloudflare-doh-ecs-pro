@@ -97,6 +97,24 @@ describe("byte-level rules", () => {
     expect(unchanged).toBe("unchanged");
   });
 
+  it("times out when the rules source stalls", async () => {
+    const kv = new MemoryKv();
+    const fetcher = vi.fn(
+      (_input: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        })
+    );
+    await expect(
+      updateRules(
+        { RULES_KV: kv.asBinding() },
+        fetcher as unknown as typeof fetch,
+        1
+      )
+    ).rejects.toThrowError("rules_download_timeout");
+    expect(kv.values.size).toBe(0);
+  });
+
   it("does not switch manifest when KV readback verification fails", async () => {
     const kv = new MemoryKv();
     kv.failReadback = true;
