@@ -1,24 +1,17 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "cf-doh-ecs-pro",
+	"name": "cloudflare-doh-ecs-pro",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-11-26",
+	"compatibility_date": "2026-11-23",
 	"workers_dev": false,
 	"observability": {
 		"enabled": true,
-		"redact_query_string": true,
-		"logs": {
-			"enabled": true,
-			"invocation_logs": false
-		},
-		"traces": {
-			"enabled": false
-		}
+		"redact_query_string": true
 	},
 	"kv_namespaces": [
 		{
 			"binding": "RULES_KV",
-			"id": "00000000000000000000000000000000"
+			"id": "46e5e11151458a853089b5d6a4db1a82"
 		}
 	],
 	"vars": {
