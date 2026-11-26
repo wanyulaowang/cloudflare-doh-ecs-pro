@@ -1,6 +1,10 @@
 # cf-doh-ecs-pro
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/your-github-username/cf-doh-ecs-pro)
+发布公开仓库后，把下面模板中的仓库地址替换成你的真实地址，再复制到 README 中启用一键部署按钮：
+
+```md
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/<your-account>/cf-doh-ecs-pro)
+```
 
 部署在 Cloudflare Workers 上的 DoH 服务，支持 RFC 8484、Google 风格 JSON API、国内域名 ECS，以及国内外上游分流。
 
@@ -80,7 +84,7 @@ https://doh.example.com/
 ## 一键部署
 
 1. 把仓库推送到公开 GitHub 或 GitLab。
-2. 把 README 中的 Deploy to Cloudflare 按钮链接替换成你的仓库地址。
+2. 把部署按钮模板中的仓库地址替换成你的真实仓库地址。
 3. 部署前把 `DOH_PATH` 和 `JSON_PATH` 改成高熵随机路径。
 4. 点击按钮，Cloudflare 会自动创建 KV 并替换 `wrangler.jsonc` 里的占位 ID。
 5. 部署完成后绑定自定义域名；模板默认关闭 `.workers.dev`，避免形成公开解析器入口。
@@ -93,7 +97,7 @@ https://doh.example.com/
 1. 安装依赖：
 
 ```bash
-npm install
+npm ci
 ```
 
 2. 创建 KV 命名空间：
