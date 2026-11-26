@@ -157,6 +157,31 @@ describe("byte-level rules", () => {
     expect(isDomesticDomain(loaded!, "qq.com")).toBe(true);
   });
 
+  it("cancels a rules response body rejected by content type", async () => {
+    const kv = new MemoryKv();
+    const rejected = {
+      cancelled: false,
+      stream: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array(1024));
+        },
+        cancel() {
+          rejected.cancelled = true;
+        }
+      })
+    };
+    const fetcher = vi.fn(async () =>
+      new Response(rejected.stream, {
+        headers: { "content-type": "text/html" }
+      })
+    );
+    await expect(
+      updateRules({ RULES_KV: kv.asBinding() }, fetcher as unknown as typeof fetch)
+    ).rejects.toThrowError("rules_download_html");
+    expect(rejected.cancelled).toBe(true);
+    expect(kv.values.size).toBe(0);
+  });
+
   it("does not switch manifest when KV readback verification fails", async () => {
     const kv = new MemoryKv();
     kv.failReadback = true;

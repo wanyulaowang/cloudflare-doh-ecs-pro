@@ -144,6 +144,14 @@ async function readDnsRequest(
   return emptyResponse(405, { Allow: "GET, POST" });
 }
 
+async function rejectUpstreamResponse(
+  response: Response,
+  reason: string
+): Promise<never> {
+  await response.body?.cancel().catch(() => undefined);
+  throw new UpstreamFailure(reason);
+}
+
 async function fetchUpstream(url: string, query: Uint8Array): Promise<Uint8Array> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
@@ -165,12 +173,16 @@ async function fetchUpstream(url: string, query: Uint8Array): Promise<Uint8Array
         controller.signal.aborted ? "timeout" : "network_error"
       );
     }
-    if (!response.ok) throw new UpstreamFailure(`http_status_${response.status}`);
+    if (!response.ok) {
+      await rejectUpstreamResponse(response, `http_status_${response.status}`);
+    }
     const type = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-    if (type !== DNS_CONTENT_TYPE) throw new UpstreamFailure("invalid_content_type");
+    if (type !== DNS_CONTENT_TYPE) {
+      await rejectUpstreamResponse(response, "invalid_content_type");
+    }
     const declaredLength = response.headers.get("content-length");
     if (declaredLength !== null && Number(declaredLength) > MAX_RESPONSE_BYTES) {
-      throw new UpstreamFailure("response_too_large");
+      await rejectUpstreamResponse(response, "response_too_large");
     }
     let body: Uint8Array;
     try {

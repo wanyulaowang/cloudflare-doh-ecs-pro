@@ -395,6 +395,14 @@ export async function getRules(
   return rulesLoadPromise;
 }
 
+async function rejectRulesResponse(
+  response: Response,
+  reason: string
+): Promise<never> {
+  await response.body?.cancel().catch(() => undefined);
+  throw new Error(reason);
+}
+
 export async function updateRules(
   env: Env,
   fetcher: typeof fetch = fetch,
@@ -419,14 +427,18 @@ export async function updateRules(
     );
   }
   try {
-    if (!response.ok) throw new Error("rules_download_status");
+    if (!response.ok) {
+      await rejectRulesResponse(response, "rules_download_status");
+    }
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (contentType.includes("text/html")) throw new Error("rules_download_html");
+    if (contentType.includes("text/html")) {
+      await rejectRulesResponse(response, "rules_download_html");
+    }
     const declaredLength = response.headers.get("content-length");
     if (declaredLength !== null) {
       const parsedLength = Number(declaredLength);
       if (!Number.isFinite(parsedLength) || parsedLength > MAX_RULE_BYTES) {
-        throw new Error("rules_download_too_large");
+        await rejectRulesResponse(response, "rules_download_too_large");
       }
     }
 

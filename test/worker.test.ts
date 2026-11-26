@@ -1,6 +1,19 @@
 import { readU16, toArrayBuffer } from "../src/binary";
 
 const MAX_RESPONSE_BYTES = 65535;
+
+function cancellableStream(): { stream: ReadableStream<Uint8Array>; cancelled: boolean } {
+  const state = { cancelled: false };
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(1024));
+    },
+    cancel() {
+      state.cancelled = true;
+    }
+  });
+  return { stream, get cancelled() { return state.cancelled; } };
+}
 import { parseDnsMessage } from "../src/dns";
 import { handleRequest } from "../src/index";
 import { getRules, resetRuleCacheForTest, RULES_URL } from "../src/rules";
@@ -248,6 +261,42 @@ describe("DoH worker", () => {
       "https://dns.google/dns-query",
       "https://cloudflare-dns.com/dns-query"
     ]);
+  });
+
+  it("cancels an upstream body rejected by HTTP status before fallback", async () => {
+    const { env } = await envWithRules();
+    const rejected = cancellableStream();
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        calls.push(String(input));
+        if (calls.length === 1) {
+          return new Response(rejected.stream, {
+            status: 503,
+            headers: { "content-type": "application/dns-message" }
+          });
+        }
+        const query = new Uint8Array(init?.body as ArrayBuffer);
+        return new Response(toArrayBuffer(makeResponseFromQuery(query)), {
+          headers: { "content-type": "application/dns-message" }
+        });
+      })
+    );
+    const response = await handleRequest(
+      new Request("https://worker.example/doh", {
+        method: "POST",
+        headers: { "content-type": "application/dns-message" },
+        body: toArrayBuffer(makeQuery("example.net"))
+      }),
+      env
+    );
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([
+      "https://dns.google/dns-query",
+      "https://cloudflare-dns.com/dns-query"
+    ]);
+    expect(rejected.cancelled).toBe(true);
   });
 
   it("falls back within the global group", async () => {
