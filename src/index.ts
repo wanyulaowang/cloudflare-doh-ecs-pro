@@ -183,19 +183,20 @@ async function fetchUpstream(url: string, query: Uint8Array): Promise<Uint8Array
     if (declaredLength !== null && Number(declaredLength) > MAX_RESPONSE_BYTES) {
       throw new UpstreamFailure("response_too_large");
     }
-    let buffer: ArrayBuffer;
+    let body: Uint8Array;
     try {
-      buffer = await response.arrayBuffer();
+      body = await readBodyUpTo(response, MAX_RESPONSE_BYTES);
     } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        throw new UpstreamFailure("response_too_large");
+      }
       throw new UpstreamFailure(
         controller.signal.aborted ? "timeout" : "response_read_error",
         safeFetchErrorDetail(error)
       );
     }
-    if (buffer.byteLength < 12 || buffer.byteLength > MAX_RESPONSE_BYTES) {
-      throw new UpstreamFailure("invalid_response_size");
-    }
-    return new Uint8Array(buffer);
+    if (body.byteLength < 12) throw new UpstreamFailure("invalid_response_size");
+    return body;
   } finally {
     clearTimeout(timeout);
   }

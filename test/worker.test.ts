@@ -1,4 +1,6 @@
 import { readU16, toArrayBuffer } from "../src/binary";
+
+const MAX_RESPONSE_BYTES = 65535;
 import { parseDnsMessage } from "../src/dns";
 import { handleRequest } from "../src/index";
 import { resetRuleCacheForTest } from "../src/rules";
@@ -132,6 +134,45 @@ describe("DoH worker", () => {
     expect(calls).toEqual([
       "https://doh.pub/dns-query",
       "https://dns.alidns.com/dns-query"
+    ]);
+  });
+
+  it("falls back when an upstream response stream exceeds the DNS size limit", async () => {
+    const { env } = await envWithRules();
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        calls.push(String(input));
+        if (calls.length === 1) {
+          const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new Uint8Array(MAX_RESPONSE_BYTES + 1));
+              controller.close();
+            }
+          });
+          return new Response(body, {
+            headers: { "content-type": "application/dns-message" }
+          });
+        }
+        const query = new Uint8Array(init?.body as ArrayBuffer);
+        return new Response(toArrayBuffer(makeResponseFromQuery(query)), {
+          headers: { "content-type": "application/dns-message" }
+        });
+      })
+    );
+    const response = await handleRequest(
+      new Request("https://worker.example/doh", {
+        method: "POST",
+        headers: { "content-type": "application/dns-message" },
+        body: toArrayBuffer(makeQuery("example.net"))
+      }),
+      env
+    );
+    expect(response.status).toBe(200);
+    expect(calls).toEqual([
+      "https://dns.google/dns-query",
+      "https://cloudflare-dns.com/dns-query"
     ]);
   });
 
