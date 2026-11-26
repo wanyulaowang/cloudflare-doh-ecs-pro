@@ -86,7 +86,7 @@ describe("DoH worker", () => {
     expect(parseDnsMessage(forwarded).opt).toBeNull();
   });
 
-  it("falls back to CF-Connecting-IP for domestic ECS", async () => {
+  it("trusts only CF-Connecting-IP for domestic ECS", async () => {
     const { env } = await envWithRules();
     let forwarded = new Uint8Array();
     vi.stubGlobal(
@@ -101,7 +101,7 @@ describe("DoH worker", () => {
     const response = await handleRequest(
       new Request(`https://worker.example/doh?dns=${base64Url(makeQuery("qq.com", 66))}`, {
         headers: {
-          "x-forwarded-for": "10.0.0.1, 192.168.1.1",
+          "x-forwarded-for": "1.2.3.4, 10.0.0.1",
           "cf-connecting-ip": "8.8.4.123"
         }
       }),
@@ -109,6 +109,28 @@ describe("DoH worker", () => {
     );
     expect(response.status).toBe(200);
     expect(ecsOption(forwarded)).toEqual([0, 8, 0, 7, 0, 1, 24, 0, 8, 8, 4]);
+  });
+
+  it("does not inject ECS when CF-Connecting-IP is unavailable", async () => {
+    const { env } = await envWithRules();
+    let forwarded = new Uint8Array();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) => {
+        forwarded = new Uint8Array(init?.body as ArrayBuffer);
+        return new Response(toArrayBuffer(makeResponseFromQuery(forwarded)), {
+          headers: { "content-type": "application/dns-message" }
+        });
+      })
+    );
+    const response = await handleRequest(
+      new Request(`https://worker.example/doh?dns=${base64Url(makeQuery("qq.com", 66))}`, {
+        headers: { "x-forwarded-for": "1.2.3.4" }
+      }),
+      env
+    );
+    expect(response.status).toBe(200);
+    expect(parseDnsMessage(forwarded).opt).toBeNull();
   });
 
   it("returns DNS SERVFAIL after exhausting the domestic group", async () => {

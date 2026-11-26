@@ -13,7 +13,7 @@ import {
   jsonServfailResponse,
   parseJsonRequest
 } from "./json";
-import { clientIpFromSingleHeader, clientIpFromXff, subnetForEcs } from "./ip";
+import { clientIpFromSingleHeader, subnetForEcs } from "./ip";
 import { ensureRules, isDomesticDomain, updateRules } from "./rules";
 import { readConfig, type WorkerConfig } from "./config";
 import { homepageResponse } from "./site";
@@ -226,8 +226,7 @@ async function resolveDnsQuery(
   try {
     // 只对国内上游启用用户侧 ECS；国外上游始终移除客户端 ECS。
     const ip = domestic
-      ? clientIpFromSingleHeader(request.headers.get("cf-connecting-ip")) ??
-        clientIpFromXff(request.headers.get("x-forwarded-for"))
+      ? clientIpFromSingleHeader(request.headers.get("cf-connecting-ip"))
       : null;
     const subnet = domestic
       ? subnetForEcs(ip, ECS_IPV4_PREFIX, ECS_IPV6_PREFIX)
