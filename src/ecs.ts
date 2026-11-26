@@ -37,9 +37,8 @@ function filteredOptions(
     if (end > opt.rdataEnd) {
       throw new DnsFormatError("truncated_edns_option_data");
     }
-    if (code !== ECS_OPTION_CODE) {
-      parts.push(message.slice(offset, end));
-    }
+    // 只保留 Worker 重新生成的 ECS；丢弃 NSID、COOKIE 等客户端请求的
+    // 非 ECS option，避免向上游暴露额外能力或基础设施信息。
     offset = end;
   }
   if (subnet !== null) parts.push(encodeEcsOption(subnet));

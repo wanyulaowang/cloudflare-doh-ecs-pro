@@ -43,7 +43,7 @@ describe("EDNS Client Subnet rewriting", () => {
     ]);
   });
 
-  it("replaces old ECS while preserving other options, UDP size and DO", () => {
+  it("replaces old ECS, drops other options, and preserves UDP size and DO", () => {
     const padding = option(12, [1, 2, 3]);
     const oldEcs = option(8, [0, 1, 32, 0, 9, 9, 9, 9]);
     const options = new Uint8Array(padding.length + oldEcs.length);
@@ -60,15 +60,17 @@ describe("EDNS Client Subnet rewriting", () => {
     expect(parsed.opt?.class).toBe(4096);
     expect((parsed.opt?.ttl ?? 0) & 0x8000).toBe(0x8000);
     const start = parsed.opt?.rdataStart ?? 0;
-    expect(readU16(output, start)).toBe(12);
-    const ecsStart = start + padding.length;
-    expect(readU16(output, ecsStart)).toBe(8);
-    expect(Array.from(output.slice(ecsStart + 8, ecsStart + 12))).toEqual([1, 1, 1, 128]);
+    expect(readU16(output, start)).toBe(8);
+    expect(Array.from(output.slice(start + 8, start + 12))).toEqual([1, 1, 1, 128]);
   });
 
-  it("removes client-provided ECS when no trusted public IP exists", () => {
+  it("removes all client options when no trusted public IP exists", () => {
+    const oldPadding = option(12, [1, 2, 3]);
     const oldEcs = option(8, [0, 1, 24, 0, 9, 9, 9]);
-    const query = makeQuery("qq.com", 1, { optOptions: oldEcs });
+    const options = new Uint8Array(oldPadding.length + oldEcs.length);
+    options.set(oldPadding);
+    options.set(oldEcs, oldPadding.length);
+    const query = makeQuery("qq.com", 1, { optOptions: options });
     const output = rewriteEcs(query, parseDnsMessage(query), null);
     const parsed = parseDnsMessage(output);
     expect(parsed.opt?.rdataStart).toBe(parsed.opt?.rdataEnd);
