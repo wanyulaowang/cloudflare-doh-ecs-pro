@@ -1,6 +1,6 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "cf-doh-ecs-pro",
+	"name": "cloudflare-doh-ecs-pro",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-11-23",
 	"workers_dev": false,
