@@ -86,7 +86,8 @@ https://doh.example.com/
 5. 部署完成后绑定自定义域名；模板默认关闭 `.workers.dev`，避免形成公开解析器入口。
 6. 在自定义域名上配置 Cloudflare WAF 或速率限制后再对外分享。
 
-`wrangler.jsonc` 中的 KV ID 是模板占位值，公开仓库不要提交你个人账号的真实 KV ID。
+`wrangler.jsonc` 中的 KV ID 是模板占位值，公开仓库不要提交你个人账号的真实 KV ID。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
+
 
 ## 部署
 
