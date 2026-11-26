@@ -3,7 +3,7 @@
 	"name": "cf-doh-ecs-pro",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-11-26",
-	"workers_dev": true,
+	"workers_dev": false,
 	"kv_namespaces": [
 		{
 			"binding": "RULES_KV",
