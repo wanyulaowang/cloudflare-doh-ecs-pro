@@ -4,6 +4,17 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-11-26",
 	"workers_dev": false,
+	"observability": {
+		"enabled": true,
+		"redact_query_string": true,
+		"logs": {
+			"enabled": true,
+			"invocation_logs": false
+		},
+		"traces": {
+			"enabled": false
+		}
+	},
 	"kv_namespaces": [
 		{
 			"binding": "RULES_KV",

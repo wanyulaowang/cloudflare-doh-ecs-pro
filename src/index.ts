@@ -349,7 +349,7 @@ export default {
     ctx.waitUntil(
       updateRules(env).then(
         () => undefined,
-        () => undefined
+        () => console.warn("rules_update_failed")
       )
     );
   }
