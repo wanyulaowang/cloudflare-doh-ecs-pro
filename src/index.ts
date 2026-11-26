@@ -1,5 +1,5 @@
 import { toArrayBuffer } from "./binary";
-import { BodyTooLargeError, readBodyUpTo } from "./body";
+import { BodyReadTimeoutError, BodyTooLargeError, readBodyUpTo } from "./body";
 import {
   buildDnsError,
   DnsFormatError,
@@ -23,6 +23,7 @@ import type { Env } from "./types";
 const MAX_REQUEST_BYTES = 4096;
 const MAX_RESPONSE_BYTES = 65535;
 const UPSTREAM_TIMEOUT_MS = 3000;
+const DNS_REQUEST_TIMEOUT_MS = 5000;
 const ECS_IPV4_PREFIX = 24;
 const ECS_IPV6_PREFIX = 56;
 const DNS_CONTENT_TYPE = "application/dns-message";
@@ -126,11 +127,16 @@ async function readDnsRequest(
       }
     }
     try {
-      const body = await readBodyUpTo(request, MAX_REQUEST_BYTES);
+      const body = await readBodyUpTo(
+        request,
+        MAX_REQUEST_BYTES,
+        DNS_REQUEST_TIMEOUT_MS
+      );
       if (body.byteLength === 0) return emptyResponse(400);
       return body;
     } catch (error) {
       if (error instanceof BodyTooLargeError) return emptyResponse(413);
+      if (error instanceof BodyReadTimeoutError) return emptyResponse(408);
       throw error;
     }
   }

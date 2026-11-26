@@ -1,5 +1,5 @@
 import { concatBytes } from "../src/binary";
-import { BodyTooLargeError, readBodyUpTo } from "../src/body";
+import { BodyReadTimeoutError, BodyTooLargeError, readBodyUpTo } from "../src/body";
 
 function streamFrom(chunks: Uint8Array[]): ReadableStream<Uint8Array> {
   let index = 0;
@@ -38,6 +38,34 @@ describe("limited body reading", () => {
       BodyTooLargeError
     );
     expect(cancelled).toBe(true);
+  });
+
+  it("times out and cancels a stream that never produces a chunk", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      start() {
+        // Deliberately do not enqueue or close.
+      },
+      cancel() {
+        cancelled = true;
+      }
+    });
+    await expect(readBodyUpTo({ body: stream }, 4096, 1)).rejects.toBeInstanceOf(
+      BodyReadTimeoutError
+    );
+    expect(cancelled).toBe(true);
+  });
+
+  it("rejects a positive body immediately when maxBytes is zero", async () => {
+    const stream = streamFrom([Uint8Array.of(1)]);
+    await expect(readBodyUpTo({ body: stream }, 0)).rejects.toBeInstanceOf(
+      BodyTooLargeError
+    );
+  });
+
+  it("returns an empty body from a stream that closes without data", async () => {
+    const stream = streamFrom([new Uint8Array(0)]);
+    expect(await readBodyUpTo({ body: stream }, 4096)).toEqual(new Uint8Array(0));
   });
 
   it("returns an empty body for a null stream", async () => {
