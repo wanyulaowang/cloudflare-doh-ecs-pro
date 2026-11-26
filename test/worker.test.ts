@@ -520,6 +520,27 @@ describe("DoH worker", () => {
     expect(longType.status).toBe(400);
   });
 
+  it("cancels a stalled body immediately when configuration is invalid", async () => {
+    const stalled = cancellableStream();
+    const env = {
+      RULES_KV: new MemoryKv().asBinding(),
+      GLOBAL_DOH_URL: "http://127.0.0.1/dns-query"
+    };
+    const response = await handleRequest(
+      new Request("https://worker.example/doh", {
+        method: "POST",
+        headers: { "content-type": "application/dns-message" },
+        body: stalled.stream,
+        duplex: "half"
+      } as RequestInit & { duplex: "half" }),
+      env
+    );
+    const body = new Uint8Array(await response.arrayBuffer());
+    expect(response.status).toBe(200);
+    expect(readU16(body, 2) & 0x000f).toBe(2);
+    expect(stalled.cancelled).toBe(true);
+  });
+
   it("rejects an oversized chunked DNS body before buffering it fully", async () => {
     const { env } = await envWithRules();
     const body = new ReadableStream<Uint8Array>({
