@@ -257,11 +257,17 @@ export function validateDnsQuery(info: DnsMessageInfo): void {
   if (info.question.class !== 1) {
     throw new DnsFormatError("query_class_must_be_in");
   }
+  if (info.question.type < 1) {
+    throw new DnsFormatError("query_type_must_not_be_zero");
+  }
   if (info.answerCount !== 0 || info.authorityCount !== 0) {
     throw new DnsFormatError("query_must_not_contain_records");
   }
   if (info.additionalCount > 1) {
     throw new DnsFormatError("query_too_many_additional_records");
+  }
+  if (info.additionalCount === 1 && info.opt === null) {
+    throw new DnsFormatError("query_additional_must_be_opt");
   }
   if (
     info.opt !== null &&
@@ -278,6 +284,12 @@ export function validateUpstreamResponse(
   const parsed = parseDnsMessage(response);
   if ((parsed.flags & 0x8000) === 0) {
     throw new DnsFormatError("upstream_not_a_response");
+  }
+  if ((parsed.flags & 0x7800) !== 0) {
+    throw new DnsFormatError("upstream_opcode_must_be_standard");
+  }
+  if ((parsed.flags & 0x0040) !== 0) {
+    throw new DnsFormatError("upstream_reserved_flag_must_be_zero");
   }
   if (parsed.id !== request.id) {
     throw new DnsFormatError("transaction_id_mismatch");

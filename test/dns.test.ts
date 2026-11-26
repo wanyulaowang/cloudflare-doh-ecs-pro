@@ -1,4 +1,4 @@
-import { readU16, writeU16 } from "../src/binary";
+import { readU16, writeU16, writeU32 } from "../src/binary";
 import {
   buildDnsError,
   DnsFormatError,
@@ -69,6 +69,42 @@ describe("DNS wire parser", () => {
     expect(() => validateDnsQuery(parsedQuery)).toThrowError(
       "query_class_must_be_in"
     );
+  });
+
+  it("rejects zero query type, non-OPT additional records, and unsafe response flags", () => {
+    const zeroType = makeQuery("example.net", 0);
+    expect(() =>
+      validateDnsQuery(parseDnsMessage(zeroType))
+    ).toThrowError("query_type_must_not_be_zero");
+
+    const query = makeQuery("example.net", 1);
+    const extra = new Uint8Array(15);
+    extra[0] = 0;
+    writeU16(extra, 1, 1);
+    writeU16(extra, 3, 1);
+    writeU32(extra, 5, 60);
+    writeU16(extra, 9, 4);
+    extra.set([127, 0, 0, 1], 11);
+    const combined = new Uint8Array(query.length + extra.length);
+    combined.set(query);
+    combined.set(extra, query.length);
+    writeU16(combined, 10, 1);
+    expect(() =>
+      validateDnsQuery(parseDnsMessage(combined))
+    ).toThrowError("query_additional_must_be_opt");
+
+    const parsed = parseDnsMessage(query);
+    const wrongOpcode = makeResponseFromQuery(query);
+    writeU16(wrongOpcode, 2, (readU16(wrongOpcode, 2) | 0x0800) & 0xffff);
+    expect(() =>
+      validateUpstreamResponse(wrongOpcode, parsed)
+    ).toThrowError("upstream_opcode_must_be_standard");
+
+    const reservedFlag = makeResponseFromQuery(query);
+    writeU16(reservedFlag, 2, (readU16(reservedFlag, 2) | 0x0040) & 0xffff);
+    expect(() =>
+      validateUpstreamResponse(reservedFlag, parsed)
+    ).toThrowError("upstream_reserved_flag_must_be_zero");
   });
 
   it("validates upstream identity and question", () => {
