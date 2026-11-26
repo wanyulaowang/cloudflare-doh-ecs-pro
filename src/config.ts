@@ -5,6 +5,12 @@ const DEFAULT_DOMESTIC = "https://doh.pub/dns-query";
 const DEFAULT_DOMESTIC_FALLBACK = "https://dns.alidns.com/dns-query";
 const DEFAULT_GLOBAL = "https://dns.google/dns-query";
 const DEFAULT_GLOBAL_FALLBACK = "https://cloudflare-dns.com/dns-query";
+const ALLOWED_UPSTREAM_HOSTNAMES = new Set([
+  "doh.pub",
+  "dns.alidns.com",
+  "dns.google",
+  "cloudflare-dns.com"
+]);
 const DEFAULT_DOH_PATH = "/doh";
 const DEFAULT_JSON_PATH = "/resolve";
 
@@ -42,7 +48,8 @@ function validateUpstream(value: string | undefined, fallback: string): string {
     url.username !== "" ||
     url.password !== "" ||
     url.hash !== "" ||
-    url.search !== ""
+    url.search !== "" ||
+    !ALLOWED_UPSTREAM_HOSTNAMES.has(url.hostname)
   ) {
     throw new Error("invalid_upstream_url");
   }

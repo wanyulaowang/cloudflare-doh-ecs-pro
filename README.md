@@ -142,7 +142,7 @@ npm run deploy
 | `GLOBAL_DOH_URL` | `https://dns.google/dns-query` |
 | `GLOBAL_FALLBACK_DOH_URL` | `https://cloudflare-dns.com/dns-query` |
 
-上游只允许 HTTPS URL，禁止用户名、密码、查询串和私网地址，避免 SSRF。
+上游只允许 HTTPS URL，且主机名必须属于 DNSPod、AliDNS、Google DNS 或 Cloudflare DNS 的固定 allowlist；同时禁止用户名、密码、查询串和私网地址，避免 SSRF。
 
 ## 隐私与日志
 

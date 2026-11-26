@@ -22,15 +22,15 @@ describe("worker configuration", () => {
         ...base(),
         DOH_PATH: "/private-doh",
         JSON_PATH: "/private-resolve",
-        GLOBAL_DOH_URL: "https://resolver.example/dns-query",
-        GLOBAL_FALLBACK_DOH_URL: "https://backup.example/dns-query"
+        GLOBAL_DOH_URL: "https://dns.google/custom-query",
+        GLOBAL_FALLBACK_DOH_URL: "https://cloudflare-dns.com/custom-query"
       })
     ).toMatchObject({
       dohPath: "/private-doh",
       jsonPath: "/private-resolve",
       globalUrls: [
-        "https://resolver.example/dns-query",
-        "https://backup.example/dns-query"
+        "https://dns.google/custom-query",
+        "https://cloudflare-dns.com/custom-query"
       ]
     });
   });
@@ -41,6 +41,7 @@ describe("worker configuration", () => {
     { DOH_PATH: "//evil" },
     { GLOBAL_DOH_URL: "http://8.8.8.8/dns-query" },
     { GLOBAL_DOH_URL: "https://user:pass@example.com/dns-query" },
+    { GLOBAL_DOH_URL: "https://dns.quad9.net/dns-query" },
     { GLOBAL_DOH_URL: "https://127.0.0.1/dns-query" },
     { GLOBAL_DOH_URL: "https://[::1]/dns-query" },
     { GLOBAL_DOH_URL: "https://example.com/dns-query?target=x" },
