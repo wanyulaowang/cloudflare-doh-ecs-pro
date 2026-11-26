@@ -325,15 +325,12 @@ async function invalidConfigResponse(request: Request, env: Env): Promise<Respon
   const dohPath = env.DOH_PATH ?? "/doh";
   const jsonPath = env.JSON_PATH ?? "/resolve";
   if (url.pathname === dohPath) {
-    let query: Uint8Array<ArrayBufferLike> = new Uint8Array();
     if (request.method === "POST") {
-      try {
-        query = await readBodyUpTo(request, MAX_REQUEST_BYTES);
-      } catch {
-        // 配置错误时也只返回 DNS 错误，不泄露具体环境变量。
-      }
+      // 配置错误时不需要解析请求体；立即取消慢速流，避免攻击者利用
+      // 无效配置路径长期占用请求。
+      await request.body?.cancel().catch(() => undefined);
     }
-    return dnsResponse(buildDnsError(query, 2));
+    return dnsResponse(buildDnsError(new Uint8Array(), 2));
   }
   if (url.pathname === jsonPath) return jsonServfailResponse("invalid", 1);
   return emptyResponse(404);
