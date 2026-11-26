@@ -1,4 +1,5 @@
 import { toArrayBuffer } from "./binary";
+import { BodyTooLargeError, readBodyUpTo } from "./body";
 import {
   buildDnsError,
   DnsFormatError,
@@ -140,10 +141,14 @@ async function readDnsRequest(
         return emptyResponse(413);
       }
     }
-    const buffer = await request.arrayBuffer();
-    if (buffer.byteLength > MAX_REQUEST_BYTES) return emptyResponse(413);
-    if (buffer.byteLength === 0) return emptyResponse(400);
-    return new Uint8Array(buffer);
+    try {
+      const body = await readBodyUpTo(request, MAX_REQUEST_BYTES);
+      if (body.byteLength === 0) return emptyResponse(400);
+      return body;
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) return emptyResponse(413);
+      throw error;
+    }
   }
 
   return emptyResponse(405, { Allow: "GET, POST" });
@@ -309,11 +314,10 @@ async function invalidConfigResponse(request: Request, env: Env): Promise<Respon
   const dohPath = env.DOH_PATH ?? "/doh";
   const jsonPath = env.JSON_PATH ?? "/resolve";
   if (url.pathname === dohPath) {
-    let query = new Uint8Array();
+    let query: Uint8Array<ArrayBufferLike> = new Uint8Array();
     if (request.method === "POST") {
       try {
-        const buffer = await request.arrayBuffer();
-        if (buffer.byteLength <= MAX_REQUEST_BYTES) query = new Uint8Array(buffer);
+        query = await readBodyUpTo(request, MAX_REQUEST_BYTES);
       } catch {
         // 配置错误时也只返回 DNS 错误，不泄露具体环境变量。
       }

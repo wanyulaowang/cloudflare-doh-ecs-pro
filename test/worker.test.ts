@@ -319,6 +319,27 @@ describe("DoH worker", () => {
     expect(await extra.json()).toEqual({ error: "bad_request" });
   });
 
+  it("rejects an oversized chunked DNS body before buffering it fully", async () => {
+    const { env } = await envWithRules();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(4097));
+        controller.close();
+      }
+    });
+    const response = await handleRequest(
+      new Request("https://worker.example/doh", {
+        method: "POST",
+        headers: { "content-type": "application/dns-message" },
+        body,
+        duplex: "half"
+      } as RequestInit & { duplex: "half" }),
+      env
+    );
+    expect(response.status).toBe(413);
+    expect(await response.text()).toBe("");
+  });
+
   it("returns FORMERR for malformed DNS and empty HTTP errors for bad transport", async () => {
     const { env } = await envWithRules();
     const malformed = await handleRequest(
