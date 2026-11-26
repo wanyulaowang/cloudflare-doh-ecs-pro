@@ -1,0 +1,54 @@
+{
+  "name": "cf-doh-ecs-pro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy",
+    "deploy:dry-run": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261125.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.12",
+    "wrangler": "4.168.0"
+  },
+  "description": "DoH proxy on Cloudflare Workers with RFC 8484, JSON API, domestic ECS, and split routing.",
+  "cloudflare": {
+    "label": "DoH ECS Pro",
+    "products": [
+      "Workers",
+      "KV"
+    ],
+    "categories": [
+      "dns",
+      "network"
+    ],
+    "docs_url": "https://developers.cloudflare.com/workers/",
+    "bindings": {
+      "DOH_PATH": {
+        "description": "RFC 8484 DoH endpoint path. Use a high-entropy path in production."
+      },
+      "JSON_PATH": {
+        "description": "JSON API endpoint path. Use a high-entropy path in production."
+      },
+      "DOMESTIC_DOH_URL": {
+        "description": "Primary domestic DNSPod DoH endpoint."
+      },
+      "DOMESTIC_FALLBACK_DOH_URL": {
+        "description": "Fallback domestic AliDNS DoH endpoint."
+      },
+      "GLOBAL_DOH_URL": {
+        "description": "Primary global Google DoH endpoint."
+      },
+      "GLOBAL_FALLBACK_DOH_URL": {
+        "description": "Fallback global Cloudflare DoH endpoint."
+      },
+      "RULES_KV": {
+        "description": "KV namespace for the domestic-domain rules list. Deploy to Cloudflare creates it automatically."
+      }
+    }
+  }
+}
