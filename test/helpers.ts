@@ -61,6 +61,25 @@ export function makeResponseFromQuery(query: Uint8Array): Uint8Array {
   return output;
 }
 
+export function makeInvalidRdataResponseFromQuery(query: Uint8Array): Uint8Array {
+  const output = new Uint8Array(query.length + 16);
+  output.set(query);
+  output[2] = (output[2] ?? 0) | 0x80;
+  output[3] = (output[3] ?? 0) | 0x80;
+  output[6] = 1;
+  const offset = query.length;
+  output[offset] = 0xc0;
+  output[offset + 1] = 0x0c;
+  writeU16(output, offset + 2, 1);
+  writeU16(output, offset + 4, 1);
+  writeU32(output, offset + 6, 60);
+  writeU16(output, offset + 10, 3);
+  output[offset + 12] = 1;
+  output[offset + 13] = 2;
+  output[offset + 14] = 3;
+  return output;
+}
+
 export function makeRuleBytes(newline = "\n", finalNewline = false): Uint8Array {
   const lines = [
     "0.zone",

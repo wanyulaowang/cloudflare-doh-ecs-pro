@@ -4,7 +4,7 @@ const MAX_RESPONSE_BYTES = 65535;
 import { parseDnsMessage } from "../src/dns";
 import { handleRequest } from "../src/index";
 import { resetRuleCacheForTest } from "../src/rules";
-import { envWithRules, makeQuery, makeResponseFromQuery, MemoryKv } from "./helpers";
+import { envWithRules, makeInvalidRdataResponseFromQuery, makeQuery, makeResponseFromQuery, MemoryKv } from "./helpers";
 
 function base64Url(data: Uint8Array): string {
   let binary = "";
@@ -363,6 +363,29 @@ describe("DoH worker", () => {
     expect(response.status).toBe(200);
     expect(payload.Status).toBe(3);
     expect(payload.Answer).toEqual([]);
+  });
+
+  it("returns JSON SERVFAIL when upstream record data is invalid", async () => {
+    const { env } = await envWithRules();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
+        new Response(
+          toArrayBuffer(
+            makeInvalidRdataResponseFromQuery(new Uint8Array(init?.body as ArrayBuffer))
+          ),
+          { headers: { "content-type": "application/dns-message" } }
+        )
+      )
+    );
+    const response = await handleRequest(
+      new Request("https://worker.example/resolve?name=example.net&type=A"),
+      env
+    );
+    const payload = (await response.json()) as { Status: number; Question: unknown[] };
+    expect(response.status).toBe(200);
+    expect(payload.Status).toBe(2);
+    expect(payload.Question).toEqual([{ name: "example.net.", type: 1 }]);
   });
 
   it("returns JSON errors for malformed requests", async () => {

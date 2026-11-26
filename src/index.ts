@@ -302,11 +302,18 @@ async function handleJson(
 
   const resolved = await resolveDnsQuery(request, env, config, query);
   const info = parseDnsMessage(resolved);
+  const name = url.searchParams.get("name") ?? "invalid";
   if ((info.flags & 0x000f) === 2) {
-    const name = url.searchParams.get("name") ?? "invalid";
     return jsonServfailResponse(name, parsed.question.type);
   }
-  return jsonDnsResponse(resolved);
+  try {
+    return jsonDnsResponse(resolved);
+  } catch (error) {
+    if (error instanceof DnsFormatError) {
+      return jsonServfailResponse(name, parsed.question.type);
+    }
+    throw error;
+  }
 }
 
 async function invalidConfigResponse(request: Request, env: Env): Promise<Response> {
