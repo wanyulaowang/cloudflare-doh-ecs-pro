@@ -28,10 +28,7 @@ const ECS_IPV6_PREFIX = 56;
 const DNS_CONTENT_TYPE = "application/dns-message";
 
 class UpstreamFailure extends Error {
-  constructor(
-    readonly reason: string,
-    readonly detail?: string
-  ) {
+  constructor(readonly reason: string) {
     super(reason);
     this.name = "UpstreamFailure";
   }
@@ -39,24 +36,10 @@ class UpstreamFailure extends Error {
 
 interface UpstreamFailureDiagnostic {
   reason: string;
-  detail?: string;
-}
-
-function safeFetchErrorDetail(error: unknown): string {
-  if (!(error instanceof Error)) return `non_error:${typeof error}`;
-  return `${error.name}: ${error.message}`
-    .replace(/https:\/\/[^\s"'<>]+/gi, "[url]")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 240);
 }
 
 function upstreamFailureDiagnostic(error: unknown): UpstreamFailureDiagnostic {
-  if (error instanceof UpstreamFailure) {
-    return error.detail === undefined
-      ? { reason: error.reason }
-      : { reason: error.reason, detail: error.detail };
-  }
+  if (error instanceof UpstreamFailure) return { reason: error.reason };
   if (error instanceof DnsFormatError) return { reason: `dns_${error.message}` };
   return { reason: "unexpected_error" };
 }
@@ -173,8 +156,7 @@ async function fetchUpstream(url: string, query: Uint8Array): Promise<Uint8Array
       });
     } catch (error) {
       throw new UpstreamFailure(
-        controller.signal.aborted ? "timeout" : "network_error",
-        safeFetchErrorDetail(error)
+        controller.signal.aborted ? "timeout" : "network_error"
       );
     }
     if (!response.ok) throw new UpstreamFailure(`http_status_${response.status}`);
@@ -192,8 +174,7 @@ async function fetchUpstream(url: string, query: Uint8Array): Promise<Uint8Array
         throw new UpstreamFailure("response_too_large");
       }
       throw new UpstreamFailure(
-        controller.signal.aborted ? "timeout" : "response_read_error",
-        safeFetchErrorDetail(error)
+        controller.signal.aborted ? "timeout" : "response_read_error"
       );
     }
     if (body.byteLength < 12) throw new UpstreamFailure("invalid_response_size");
