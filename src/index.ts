@@ -4,6 +4,7 @@ import {
   buildDnsError,
   DnsFormatError,
   parseDnsMessage,
+  validateDnsQuery,
   validateUpstreamResponse
 } from "./dns";
 import { rewriteEcs } from "./ecs";
@@ -211,6 +212,7 @@ async function resolveDnsQuery(
   let parsed;
   try {
     parsed = parseDnsMessage(originalQuery);
+    validateDnsQuery(parsed);
   } catch {
     return buildDnsError(originalQuery, 1);
   }

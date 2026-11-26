@@ -4,6 +4,7 @@ import {
   DnsFormatError,
   parseDnsMessage,
   parseName,
+  validateDnsQuery,
   validateUpstreamResponse
 } from "../src/dns";
 import { encodeName, makeQuery, makeResponseFromQuery } from "./helpers";
@@ -45,6 +46,29 @@ describe("DNS wire parser", () => {
     const trailing = new Uint8Array(valid.length + 1);
     trailing.set(valid);
     expect(() => parseDnsMessage(trailing)).toThrowError("trailing_bytes");
+  });
+
+  it("accepts a standard DNS query and rejects unsafe query semantics", () => {
+    expect(() => validateDnsQuery(parseDnsMessage(makeQuery()))).not.toThrow();
+
+    const responseLike = makeQuery();
+    writeU16(responseLike, 2, 0x8100);
+    expect(() =>
+      validateDnsQuery(parseDnsMessage(responseLike))
+    ).toThrowError("query_must_not_be_response");
+
+    const reservedFlag = makeQuery();
+    writeU16(reservedFlag, 2, 0x0150);
+    expect(() =>
+      validateDnsQuery(parseDnsMessage(reservedFlag))
+    ).toThrowError("query_reserved_flag_must_be_zero");
+
+    const nonInternetClass = makeQuery();
+    const parsedQuery = parseDnsMessage(nonInternetClass);
+    parsedQuery.question.class = 3;
+    expect(() => validateDnsQuery(parsedQuery)).toThrowError(
+      "query_class_must_be_in"
+    );
   });
 
   it("validates upstream identity and question", () => {
