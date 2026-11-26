@@ -31,7 +31,6 @@ function filteredOptions(
     if (offset + 4 > opt.rdataEnd) {
       throw new DnsFormatError("truncated_edns_option");
     }
-    const code = readU16(message, offset);
     const length = readU16(message, offset + 2);
     const end = offset + 4 + length;
     if (end > opt.rdataEnd) {
