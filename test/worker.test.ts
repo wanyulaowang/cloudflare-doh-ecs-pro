@@ -403,6 +403,20 @@ describe("DoH worker", () => {
     );
     expect(extra.status).toBe(400);
     expect(await extra.json()).toEqual({ error: "bad_request" });
+
+    const duplicateType = await handleRequest(
+      new Request("https://worker.example/resolve?name=example.net&type=A&type=AAAA"),
+      env
+    );
+    expect(duplicateType.status).toBe(400);
+
+    const longType = await handleRequest(
+      new Request(
+        "https://worker.example/resolve?name=example.net&type=" + "a".repeat(17)
+      ),
+      env
+    );
+    expect(longType.status).toBe(400);
   });
 
   it("rejects an oversized chunked DNS body before buffering it fully", async () => {

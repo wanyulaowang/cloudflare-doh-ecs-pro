@@ -82,8 +82,15 @@ function encodeDnsName(value: string): Uint8Array {
 
 function parseType(value: string | null): number {
   if (value === null) return 1;
-  const numeric = Number(value);
-  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 0xffff) return numeric;
+  if (value.length === 0 || value.length > 16) {
+    throw new DnsFormatError("invalid_json_type");
+  }
+  if (/^[0-9]+$/.test(value)) {
+    const numeric = Number(value);
+    if (Number.isSafeInteger(numeric) && numeric >= 1 && numeric <= 0xffff) {
+      return numeric;
+    }
+  }
   const type = TYPE_BY_NAME.get(value.trim().toLowerCase());
   if (type === undefined) throw new DnsFormatError("invalid_json_type");
   return type;
@@ -113,6 +120,10 @@ export function parseJsonRequest(url: URL, id = 0x1234): Uint8Array {
   }
   if (url.searchParams.getAll("name").length !== 1) {
     throw new DnsFormatError("invalid_json_name");
+  }
+  const typeValues = url.searchParams.getAll("type");
+  if (typeValues.length > 1) {
+    throw new DnsFormatError("invalid_json_type");
   }
 
   const name = url.searchParams.get("name");
