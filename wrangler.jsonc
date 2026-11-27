@@ -11,6 +11,7 @@
 	"kv_namespaces": [
 		{
 			"binding": "RULES_KV",
+			"id": "00000000000000000000000000000000"
 		}
 	],
 	"vars": {
