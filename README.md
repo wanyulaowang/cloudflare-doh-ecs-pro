@@ -101,7 +101,7 @@ https://doh.example.com/your-doh-path
 5. 部署完成后绑定自定义域名；模板默认关闭 `.workers.dev`，避免形成公开解析器入口。
 6. 在自定义域名上配置 Cloudflare WAF 或速率限制后再对外分享。
 
-`wrangler.jsonc` 不包含 KV ID；Wrangler 会为新部署自动创建 KV，或在连接已有 Worker 时继承同名绑定。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
+`wrangler.jsonc` 使用全 0 占位 KV ID，供 Deploy to Cloudflare 解析并自动替换。不要把真实 KV ID 提交到公开仓库；已有 Worker 或本地部署请使用 `wrangler.production.jsonc`。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
 
 ## 手动在 Cloudflare Workers 新建 Worker
 
@@ -118,15 +118,15 @@ https://doh.example.com/your-doh-path
 | Compatibility date | `2026-11-23` |
 | Root directory | `/` |
 | Build command | `npm ci` |
-| Deploy command | `npx wrangler deploy` |
-| KV binding | `RULES_KV`，无需在仓库里写死 ID |
+| Deploy command | `npx wrangler deploy --config wrangler.production.jsonc` |
+| KV binding | `RULES_KV`，使用 `wrangler.production.jsonc` 继承或自动创建 |
 | Cron Trigger | `17 3 * * *` |
 | Observability | `enabled: true`，`redact_query_string: true` |
 | `workers.dev` | 保持关闭，建议绑定自定义域名后对外使用 |
 
 说明：
 
-- 如果使用 Cloudflare 的 Git 集成和 Wrangler 自动部署，`wrangler.jsonc` 已经包含以上默认配置。
+- 如果使用 Cloudflare 的 Git 集成和 Wrangler 自动部署，建议部署命令使用 `wrangler.production.jsonc`，以便继承已有 `RULES_KV` 绑定。
 - 如果你在控制台手动选择已有 KV 命名空间，绑定名必须保持 `RULES_KV`，但不要把真实 KV ID 提交到公开仓库。
 - `workers.dev` 默认关闭；如需公网访问，请绑定自定义域名。
 
@@ -167,7 +167,7 @@ npm ci
 npx wrangler kv namespace create RULES_KV
 ```
 
-3. `wrangler.jsonc` 不需要填写 KV ID；首次部署会自动创建并绑定 `RULES_KV`，已有同名绑定时会直接继承。
+3. 本地或已有 Worker 部署请执行 `npm run deploy:production`；`wrangler.production.jsonc` 不包含 KV ID，可自动创建或继承同名绑定。
 
 4. 建议修改 `DOH_PATH` 和 `JSON_PATH` 为高熵路径。
 
@@ -179,11 +179,13 @@ npm test
 npm run deploy:dry-run
 ```
 
-6. 部署：
+6. 部署已有 Worker 或本地环境：
 
 ```bash
-npm run deploy
+npm run deploy:production
 ```
+
+如果是从 Deploy to Cloudflare 一键部署生成的仓库，Cloudflare 会把 `wrangler.jsonc` 中的占位 KV ID 替换为真实 ID；此时继续使用 `npm run deploy` 即可。
 
 部署完成后，首次国内域名查询会从 KV 读取规则；如果 KV 为空，Worker 会自动下载并初始化规则。Cron Trigger 每日更新规则，更新失败时继续使用旧版本。
 
