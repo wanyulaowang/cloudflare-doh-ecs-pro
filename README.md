@@ -61,6 +61,8 @@ https://doh.example.com/
 
 页面源码不暴露 DoH 路径，也不包含 DNS 相关说明。未知路径返回空 404。
 
+如果你需要修改这个默认首页，请查看 [HOMEPAGE_CUSTOMIZATION.md](HOMEPAGE_CUSTOMIZATION.md)。
+
 ## 客户端配置
 
 如果你希望浏览器或系统使用本服务，接入地址是：

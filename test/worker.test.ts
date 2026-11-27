@@ -369,7 +369,7 @@ describe("DoH worker", () => {
     expect(homepage.status).toBe(200);
     expect(homepage.headers.get("content-type")).toBe("text/html; charset=utf-8");
     const html = await homepage.text();
-    expect(html).toContain("星桥工作台");
+    expect(html).toContain("<!doctype html>");
     expect(html.toLowerCase()).not.toContain("dns-query");
 
     const unknown = await handleRequest(new Request("https://worker.example/not-found"), env);
