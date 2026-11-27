@@ -61,6 +61,19 @@ https://doh.example.com/
 
 页面源码不暴露 DoH 路径，也不包含 DNS 相关说明。未知路径返回空 404。
 
+## 客户端配置
+
+如果你希望浏览器或系统使用本服务，接入地址是：
+
+```text
+https://doh.example.com/your-doh-path
+```
+
+推荐优先使用**浏览器级 DoH**，例如 Firefox、Chrome、Edge 或 Brave 的自定义 secure DNS。  
+如果你需要系统级或路由器级 DoH，建议使用本地 DNS 代理，例如 `dnsproxy`、`AdGuard Home`、`blocky` 或 `dnscrypt-proxy`。
+
+详细配置步骤见 [CLIENT_SETUP.md](CLIENT_SETUP.md)。
+
 ## 防扫描建议
 
 默认路径 `/doh` 和 `/resolve` 便于测试，但生产环境建议改成高熵路径，例如：
