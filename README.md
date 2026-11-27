@@ -22,6 +22,8 @@
 - Google 和 Cloudflare 对普通解析稳定，但没有满足用户侧 ECS 的需求，因此国外组不注入 ECS。
 - IPv6 ECS 已实现编码和掩码逻辑，但上游行为需要部署后用真实 IPv6 客户端再验证。
 
+完整上游 ECS 实测结论见 [UPSTREAM_ECS_TESTING.md](UPSTREAM_ECS_TESTING.md)。
+
 ## 接口
 
 假设部署域名为 `doh.example.com`，默认路径如下。
@@ -59,6 +61,19 @@ https://doh.example.com/
 
 页面源码不暴露 DoH 路径，也不包含 DNS 相关说明。未知路径返回空 404。
 
+## 客户端配置
+
+如果你希望浏览器或系统使用本服务，接入地址是：
+
+```text
+https://doh.example.com/your-doh-path
+```
+
+推荐优先使用**浏览器级 DoH**，例如 Firefox、Chrome、Edge 或 Brave 的自定义 secure DNS。  
+如果你需要系统级或路由器级 DoH，建议使用本地 DNS 代理，例如 `dnsproxy`、`AdGuard Home`、`blocky` 或 `dnscrypt-proxy`。
+
+详细配置步骤见 [CLIENT_SETUP.md](CLIENT_SETUP.md)。
+
 ## 防扫描建议
 
 默认路径 `/doh` 和 `/resolve` 便于测试，但生产环境建议改成高熵路径，例如：
@@ -88,6 +103,55 @@ https://doh.example.com/
 
 `wrangler.jsonc` 不包含 KV ID；Wrangler 会为新部署自动创建 KV，或在连接已有 Worker 时继承同名绑定。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
 
+## 手动在 Cloudflare Workers 新建 Worker
+
+如果你不想使用一键部署，也可以在 Cloudflare 控制台手动新建 Worker 并连接本仓库。推荐配置如下。
+
+### 基础参数
+
+| 配置项 | 建议值 |
+|---|---|
+| Worker 名称 | `cloudflare-doh-ecs-pro` |
+| Git 仓库 | `https://github.com/wanyulaowang/cloudflare-doh-ecs-pro` |
+| Production branch | `main` |
+| Main module | `src/index.ts` |
+| Compatibility date | `2026-11-23` |
+| Root directory | `/` |
+| Build command | `npm ci` |
+| Deploy command | `npx wrangler deploy` |
+| KV binding | `RULES_KV`，无需在仓库里写死 ID |
+| Cron Trigger | `17 3 * * *` |
+| Observability | `enabled: true`，`redact_query_string: true` |
+| `workers.dev` | 保持关闭，建议绑定自定义域名后对外使用 |
+
+说明：
+
+- 如果使用 Cloudflare 的 Git 集成和 Wrangler 自动部署，`wrangler.jsonc` 已经包含以上默认配置。
+- 如果你在控制台手动选择已有 KV 命名空间，绑定名必须保持 `RULES_KV`，但不要把真实 KV ID 提交到公开仓库。
+- `workers.dev` 默认关闭；如需公网访问，请绑定自定义域名。
+
+### 需要填写或确认的环境变量
+
+| 变量 | 默认值 |
+|---|---|
+| `DOH_PATH` | `/doh` |
+| `JSON_PATH` | `/resolve` |
+| `DOMESTIC_DOH_URL` | `https://doh.pub/dns-query` |
+| `DOMESTIC_FALLBACK_DOH_URL` | `https://dns.alidns.com/dns-query` |
+| `GLOBAL_DOH_URL` | `https://dns.google/dns-query` |
+| `GLOBAL_FALLBACK_DOH_URL` | `https://cloudflare-dns.com/dns-query` |
+
+生产环境建议把 `DOH_PATH` 和 `JSON_PATH` 改成高熵随机路径。
+
+### 建议的上线顺序
+
+1. 在 Cloudflare Workers 中新建 `cloudflare-doh-ecs-pro`。
+2. 连接 GitHub 仓库，并确认 production branch 是 `main`。
+3. 填写上表中的 build / deploy / root directory。
+4. 绑定或自动创建 `RULES_KV`。
+5. 确认环境变量和 Cron Trigger。
+6. 绑定自定义域名。
+7. 在自定义域名上配置 WAF、速率限制或 Access。
 
 ## 部署
 
