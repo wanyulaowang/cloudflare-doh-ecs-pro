@@ -82,11 +82,11 @@ https://doh.example.com/
 1. 把仓库推送到公开 GitHub 或 GitLab。
 2. 点击 README 中的 Deploy to Cloudflare 按钮。
 3. 部署前把 `DOH_PATH` 和 `JSON_PATH` 改成高熵随机路径。
-4. 点击按钮，Cloudflare 会自动创建 KV 并替换 `wrangler.jsonc` 里的占位 ID。
+4. 点击按钮，Cloudflare 会自动创建并绑定 `RULES_KV`。
 5. 部署完成后绑定自定义域名；模板默认关闭 `.workers.dev`，避免形成公开解析器入口。
 6. 在自定义域名上配置 Cloudflare WAF 或速率限制后再对外分享。
 
-`wrangler.jsonc` 中的 KV ID 是模板占位值，公开仓库不要提交你个人账号的真实 KV ID。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
+`wrangler.jsonc` 不包含 KV ID；Wrangler 会为新部署自动创建 KV，或在连接已有 Worker 时继承同名绑定。生产上线前请阅读 [SECURITY.md](SECURITY.md)。
 
 
 ## 部署
@@ -103,16 +103,7 @@ npm ci
 npx wrangler kv namespace create RULES_KV
 ```
 
-3. 把返回的 `id` 填入 `wrangler.jsonc`：
-
-```jsonc
-"kv_namespaces": [
-  {
-    "binding": "RULES_KV",
-    "id": "YOUR_KV_NAMESPACE_ID"
-  }
-]
-```
+3. `wrangler.jsonc` 不需要填写 KV ID；首次部署会自动创建并绑定 `RULES_KV`，已有同名绑定时会直接继承。
 
 4. 建议修改 `DOH_PATH` 和 `JSON_PATH` 为高熵路径。
 
